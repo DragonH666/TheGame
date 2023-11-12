@@ -1,0 +1,9 @@
+# depslib dependency file v1.0
+1699797826 source:d:\dev\thegame\game\main.c
+	"../Engine/game.c"
+
+1699797728 d:\dev\thegame\engine\game.c
+	"Common.h"
+
+1699754760 d:\dev\thegame\engine\common.h
+
