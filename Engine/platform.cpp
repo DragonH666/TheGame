@@ -339,9 +339,10 @@ b32 ExportIsReleased(s32 Code){
 DWORD WINAPI ThreadProc(LPVOID Parameter){
     GLFWwindow* window = (GLFWwindow*)Parameter;
     
-    s32 WindowHeight = 720;
-    
     glfwMakeContextCurrent(window);
+    
+    s32 WindowWidth = 1280;
+    s32 WindowHeight = 720;
     
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -353,6 +354,7 @@ DWORD WINAPI ThreadProc(LPVOID Parameter){
     }
     
     glfwSetMouseButtonCallback(window, mouse_button_callback);
+    
     glfwSwapInterval(1);
     
     const char *VertexShaderSource = R"(
@@ -518,11 +520,15 @@ FragColor = C;
                 break;
             }
         }
+        
         GameUpdate(Memory, MouseX, MouseY);
         u32 Pixels[] = {0xffffffff};
         EmptyTextureID = AddTexture(Pixels, 1, 1);
         
-        RenderQueue(RenderTextureQueue, RenderTextureQueueSize, 1280, 720);
+        
+        glfwGetWindowSize(window, &WindowWidth, &WindowHeight);
+        glViewport(0, 0, WindowWidth, WindowHeight);
+        RenderQueue(RenderTextureQueue, RenderTextureQueueSize, WindowWidth, WindowHeight);
         RenderTextureQueueSize = 0;
         
         glfwSwapBuffers(window);
