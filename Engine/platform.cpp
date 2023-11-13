@@ -8,9 +8,40 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "stb_truetype.h"
+
 
 #include "game.h"
 #include "math.h"
+typedef struct{
+    int ID;
+    int Width;
+    int Height;
+} texture;
+
+
+typedef struct{
+    texture Texture;
+    int Advance;
+    v2 RelPos;
+    float Kern[126-32+1];
+} symbol;
+
+typedef struct{
+    symbol Symbols[126-32+1];
+    int Ascent;
+    int Descent;
+    int LineGap;
+} font;
+
+
+typedef struct{
+    int Width;
+    int Height;
+    int ID;
+} image;
+
 #include "Common.h"
 #define MemFence _WriteBarrier(); _ReadBarrier();
 
@@ -22,9 +53,12 @@
 #define INPUT_HOLD (1 << 1)
 #define INPUT_RELEASED (1 << 2)
 
-typedef void (*game_set_functions)(export_draw_rect, export_draw_image, export_load_image, export_is_pressed, export_is_hold, export_is_released);
+typedef void (*game_set_functions)(export_draw_rect, export_draw_image, export_load_image, export_is_pressed, export_is_hold, export_is_released, export_load_font, export_draw_text);
 typedef void (*game_init)(void*, f32, f32);
 typedef void (*game_update)(void*, f32, f32);
+
+memory TempMemory;
+memory MainMemory;
 
 u8* ReadFile(cstr Name, memory* Memory){
     FILE* File = fopen(Name, "rb");
@@ -287,17 +321,119 @@ void WindowCloseCallback(GLFWwindow* window)
     Run = 0;
 }
 
+v4 UnpackColor(u32 Color){
+    v4 Result = {};
+    Result.r = ((Color >> 16) & 0xff)/255.f;
+    Result.g = ((Color >> 8) & 0xff)/255.f;
+    Result.b = ((Color >> 0) & 0xff)/255.f;
+    Result.a = ((Color >> 24) & 0xff)/255.f;
+    
+    return Result;
+}
+
+u32 PackColor(v4 Color){
+    u32 Result = 0;
+    Result |= ((u32)(Color.r*255.f)) << 16;
+    Result |= ((u32)(Color.g*255.f)) << 8;
+    Result |= ((u32)(Color.b*255.f)) << 0;
+    Result |= ((u32)(Color.a*255.f)) << 24;
+    
+    return Result;
+}
+
+void LoadFont(cstr Name, font* Font, s32 Size, memory* Memory){
+    u8* File = ReadFile(Name, &TempMemory);
+    stbtt_fontinfo FontInfo; 
+    s32 Offset = stbtt_GetFontOffsetForIndex(File ,0);
+    s32 ErrorCode = stbtt_InitFont(&FontInfo, File, Offset);
+    if(!ErrorCode){
+        printf("ErrorCode\n");
+    }
+    Assert(ErrorCode);
+    
+    f32 Scale = stbtt_ScaleForPixelHeight(&FontInfo, Size);
+    
+    stbtt_GetFontVMetrics(&FontInfo, &Font->Ascent, &Font->Descent, &Font->LineGap);
+    Font->Ascent *= Scale;
+    Font->Descent *= Scale;
+    Font->LineGap *= Scale;
+    for(s32 i=0; i<126-32+1; i++){
+        s32 CodePoint = i+32;
+        s32 x0, y0, x1, y1;
+        stbtt_GetCodepointBitmapBox(&FontInfo, CodePoint, Scale, Scale, &x0, &y0, &x1, &y1);
+        s32 Width = x1-x0;
+        s32 Height = y1-y0;
+        u8* Glyph = Alloc(Width*Height, &TempMemory);
+        stbtt_MakeCodepointBitmap(&FontInfo, Glyph, Width, Height, Width, Scale, Scale, CodePoint);
+        
+        symbol* Symbol = &Font->Symbols[i];
+        stbtt_GetCodepointHMetrics(&FontInfo, CodePoint, &Symbol->Advance, 0);
+        Symbol->Advance *= Scale;
+        Symbol->RelPos = v2{(f32)x0, 0};
+        for(s32 j=0; j<126-32+1; j++){
+            Symbol->Kern[j] = Scale*stbtt_GetCodepointKernAdvance(&FontInfo, CodePoint, j+32);
+        }
+        
+        v4 Color = {1.f, 1.f, 1.f, 1.f}; 
+        Width = Width;
+        Height = Height;
+        u32* BitmapPixels = AllocArray(Width*Height, u32, Memory);
+        for(s32 y=0; y<Height; y++){
+            for(s32 x=0; x<Width; x++){
+                u8 Alpha = Glyph[y*Width + x];
+                f32 Alphaf = Alpha/255.f;
+                v4 Pixelf = Color;
+                Pixelf.a *= Alphaf;
+                Pixelf.rgb *= Pixelf.a;
+                u32 Pixel = PackColor(Pixelf);
+                BitmapPixels[y*Width + x] = Pixel;
+            }
+        }
+        Symbol->Texture.ID = AddTexture(BitmapPixels, Width, Height);
+        Symbol->Texture.Width = Width;
+        Symbol->Texture.Height = Height;
+    }
+    Free(&TempMemory);
+}
+
+
+void DrawText(cstr Str, v2 Pos, font* Font, v4 Color={1.f, 1.f, 1.f, 1.f}, f32 Scale = 1.f){
+    if(Str == 0 || Str[0] == 0){
+        return;
+    }
+    Pos.x = (s32)Pos.x;
+    Pos.y = (s32)Pos.y;
+    
+    v2 CurrentPos = Pos;
+    CurrentPos.x -= Font->Symbols[Str[0]-32].RelPos.x*Scale;
+    s32 i=0;
+    for(;Str[i+1]; i++){
+        if(Str[i] == '\n'){
+            CurrentPos.x = Pos.x;
+            CurrentPos.y -= (Font->Ascent-Font->Descent+Font->LineGap)*Scale;
+        }
+        else{
+            symbol* Symbol = &Font->Symbols[Str[i]-32];
+            v2 SymbolPos = CurrentPos + Symbol->RelPos*Scale;
+            RenderTexture(SymbolPos, Symbol->Texture, Color, 0, Scale);
+            CurrentPos.x += (Symbol->Advance + Symbol->Kern[Str[i+1]-32])*Scale;
+        }
+    }
+    symbol* Symbol = &Font->Symbols[Str[i]-32];
+    RenderTexture(CurrentPos+Symbol->RelPos*Scale, Symbol->Texture, Color, 0, Scale);
+}
+
 const v4 White = {1.f, 1.f, 1.f, 1.f};
 void ExportDrawRect(f32 x, f32 y, s32 Width, s32 Height, v4 Color){
     RenderTextureQueue[RenderTextureQueueSize++] = {v2{x, y}, EmptyTextureID, Width, Height, Color};
 }
 
-void ExportDrawImage(f32 x, f32 y, image Image){
-    RenderTextureQueue[RenderTextureQueueSize++] = {v2{x, y}, Image.ID, Image.Width, Image.Height, White};
+void ExportDrawImage(f32 x, f32 y, image* Image){
+    RenderTextureQueue[RenderTextureQueueSize++] = {v2{x, y}, Image->ID, Image->Width, Image->Height, White};
 }
 
 char* ResourcesPath;
-image ExportLoadImage(const char* Path){
+image* ExportLoadImage(const char* Path){
     s32 Width, Height, n;
     char FinalPath[256+100] = {};
     strcpy(FinalPath, ResourcesPath);
@@ -305,10 +441,10 @@ image ExportLoadImage(const char* Path){
     u32* Pixels = (u32*)stbi_load(FinalPath, &Width, &Height, &n, 4);
     
     s32 ID = AddTexture(Pixels, Width, Height);
-    image Image;
-    Image.Width = Width;
-    Image.Height = Height;
-    Image.ID = ID;
+    image* Image = (image*)Alloc(sizeof(image), &MainMemory);
+    Image->Width = Width;
+    Image->Height = Height;
+    Image->ID = ID;
     return Image;
 }
 
@@ -334,6 +470,19 @@ b32 ExportIsReleased(s32 Code){
         Result = 1;
     }
     return Result;
+}
+
+font* ExportLoadFont(const char* Path, s32 Size){
+    font* Font = (font*)Alloc(sizeof(font), &MainMemory);
+    char FinalPath[256+100] = {};
+    strcpy(FinalPath, ResourcesPath);
+    strcat(FinalPath, Path);
+    LoadFont(FinalPath, Font, Size, &MainMemory);
+    return Font;
+}
+
+void ExportDrawText(f32 x, f32 y, const char* Text, v4 Color, font* Font){
+    DrawText(Text, {x, y}, Font, Color);
 }
 
 DWORD WINAPI ThreadProc(LPVOID Parameter){
@@ -498,7 +647,7 @@ FragColor = C;
     if(!GameSetFunctions || !GameUpdate){
         printf("Load Function Error: %dl, %dl\n", GameSetFunctions, GameUpdate);
     }
-    GameSetFunctions(ExportDrawRect, ExportDrawImage, ExportLoadImage, ExportIsPressed, ExportIsHold, ExportIsReleased);
+    GameSetFunctions(ExportDrawRect, ExportDrawImage, ExportLoadImage, ExportIsPressed, ExportIsHold, ExportIsReleased, ExportLoadFont, ExportDrawText);
     f64 MouseX, MouseY;
     glfwGetCursorPos(window, &MouseX, &MouseY);
     GameInit(Memory, (f32)MouseX, (f32)MouseY);
@@ -577,6 +726,13 @@ int main(void)
     if(SlashCount != 2){
         printf("ERROR: Resources folder not found where it should be");
     }
+    
+    TempMemory.Base = (u8*)malloc(MEGABYTES(100));
+    TempMemory.Size = MEGABYTES(100);
+    TempMemory.Used = 0;
+    MainMemory.Base = (u8*)malloc(MEGABYTES(100));
+    MainMemory.Size = MEGABYTES(100);
+    MainMemory.Used = 0;
     
     CreateThread(0, 0, ThreadProc, window, 0, 0);
     

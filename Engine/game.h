@@ -16,12 +16,6 @@ typedef char str;
 
 #define Assert(x) if(!(x)){ *(s8*)0 = 12; }
 
-struct texture{
-    s32 ID;
-    s32 Width;
-    s32 Height;
-};
-
 #define KILOBYTES(x) x*1024
 #define MEGABYTES(x) KILOBYTES(x)*1024
 #define GIGABYTES(x) MEGABYTES(x)*1024

@@ -1,6 +1,12 @@
 typedef struct{
     float x, y, z, w;
 } v4;
+typedef struct{
+    float x, y;
+} v2;
+
+typedef void font;
+typedef void image;
 #include "Common.h"
 
 v4 White = {1.f, 1.f, 1.f, 1.f};
@@ -20,7 +26,12 @@ export_is_pressed IsPressed;
 export_is_hold IsHold;
 export_is_released IsReleased;
 
-void SetFunctions(export_draw_rect ExportDrawRect, export_draw_image ExportDrawImage, export_load_image ExportLoadImage, export_is_pressed ExportIsPressed, export_is_hold ExportIsHold, export_is_released ExportIsReleased){
+export_load_font LoadFont;
+export_draw_text DrawText;
+
+
+
+void SetFunctions(export_draw_rect ExportDrawRect, export_draw_image ExportDrawImage, export_load_image ExportLoadImage, export_is_pressed ExportIsPressed, export_is_hold ExportIsHold, export_is_released ExportIsReleased, export_load_font ExportLoadFont, export_draw_text ExportDrawText){
     DrawRect = ExportDrawRect;
     DrawImage = ExportDrawImage;
     LoadImage = ExportLoadImage;
@@ -29,4 +40,6 @@ void SetFunctions(export_draw_rect ExportDrawRect, export_draw_image ExportDrawI
     IsHold  = ExportIsHold;
     IsReleased  = ExportIsReleased;
     
+    LoadFont = ExportLoadFont;
+    DrawText= ExportDrawText;
 }

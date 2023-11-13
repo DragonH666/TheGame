@@ -15,7 +15,7 @@ void Update(data* Data, float MouseX, float MouseY){
 /*
 LoadImage(NazwaObrazka)
 Obrazek musi znajdować się w folderze Resources!!!
-Zwraca typ image
+Zwraca typ image*
 
 DrawImage(PozycjaX, PozycjaY, Obrazek)
 

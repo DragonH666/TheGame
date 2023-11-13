@@ -1,18 +1,17 @@
 #ifndef _COMMON_H
 
-typedef struct{
-    int Width;
-    int Height;
-    int ID;
-} image;
 
 typedef void (*export_draw_rect)(float x, float y, int Width, int Height, v4 Color);
-typedef void (*export_draw_image)(float x, float y, image Image);
-typedef image (*export_load_image)(const char* Path);
+typedef void (*export_draw_image)(float x, float y, image* Image);
+typedef image* (*export_load_image)(const char* Path);
 
 typedef int (*export_is_pressed)(int Code);
 typedef int (*export_is_hold)(int Code);
 typedef int (*export_is_released)(int Code);
+
+
+typedef void (*export_draw_text)(float x, float y, const char* Text, v4 Color, font* Font);
+typedef font* (*export_load_font)(const char* Path, int Size);
 
 
 #define KEY_SPACE              32
