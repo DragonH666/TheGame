@@ -15,6 +15,7 @@
 				<Option run_host_application_in_terminal="0" />
 				<Compiler>
 					<Add option="-g" />
+					<Add directory="../Engine/include" />
 				</Compiler>
 			</Target>
 			<Target title="Release">
