@@ -685,23 +685,37 @@ FragColor = C;
     return 0;
 }
 
+void ErrorCallback(int, const char* err_str)
+{
+    printf("GLFW Error: %s\n", err_str);
+}
+
+
 int main(void)
 {
+    glfwSetErrorCallback(ErrorCallback);
     GLFWwindow* window;
     
     int Width = 1280;
     int Height = 720;
     
     if (!glfwInit()){
-        printf("Init error");
+        printf("Init error\n");
         return -1;
+    }
+    else{
+        printf("Init good\n");
     }
     
     window = glfwCreateWindow(Width, Height, "Hello World", NULL, NULL);
     if (!window)
     {
+        printf("Window error\n");
         glfwTerminate();
         return -1;
+    }
+    else{
+        printf("Window good\n");
     }
     
     glfwSetWindowCloseCallback(window, WindowCloseCallback);
