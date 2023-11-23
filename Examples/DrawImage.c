@@ -1,7 +1,7 @@
 #include "Engine.h"
 
 typedef struct{
-    image CardImage;
+    image* CardImage;
 } data;
 
 void Init(data* Data, float MouseX, float MouseY){
